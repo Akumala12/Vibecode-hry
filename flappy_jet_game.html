@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Jet Simulator</title>
+    <!-- Tailwind CSS for UI Layout -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Fredoka', sans-serif;
+            touch-action: manipulation;
+        }
+        canvas {
+            display: block;
+            touch-action: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-white min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- Main Container -->
+    <div class="w-full max-w-4xl bg-slate-800 rounded-2xl shadow-2xl overflow-hidden border border-slate-700 flex flex-col md:flex-row">
+        
+        <!-- Game Area (Canvas) -->
+        <div class="relative flex-1 bg-sky-400 flex items-center justify-center min-h-[450px] overflow-hidden">
+            <canvas id="gameCanvas" class="w-full h-full"></canvas>
+            
+            <!-- Overlay UI: Start / Game Over Screen -->
+            <div id="overlay" class="absolute inset-0 bg-black/50 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center transition-opacity duration-300">
+                <h1 id="overlayTitle" class="text-4xl md:text-5xl font-extrabold text-yellow-400 drop-shadow-md mb-2">Flappy Jet</h1>
+                <p id="overlaySubtitle" class="text-slate-200 text-lg mb-6">Stiskni <span class="bg-yellow-500 text-slate-900 px-2 py-1 rounded font-bold">MEZERNÍK</span> nebo ťukni pro skok stíhačky</p>
+                <div class="flex gap-4">
+                    <button id="startBtn" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xl px-8 py-3 rounded-full shadow-lg transform active:scale-95 transition-all">
+                        Spustit hru 🚀
+                    </button>
+                    <button id="openShopBtn" class="bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold text-xl px-6 py-3 rounded-full shadow-lg transform active:scale-95 transition-all">
+                        Hangar / Obchod 🛠️
+                    </button>
+                </div>
+            </div>
+
+            <!-- Shop Modal -->
+            <div id="shopModal" class="hidden absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-between p-6 z-20">
+                <div class="w-full max-w-md">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-bold text-yellow-400">🛠️ Hangar a Obchod</h2>
+                        <div class="bg-yellow-500/20 text-yellow-300 font-bold border border-yellow-500/50 px-3 py-1 rounded-full text-sm">
+                            💰 <span id="shopCoinsVal">0</span> Kč
+                        </div>
+                    </div>
+                    <div id="jetList" class="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                        <!-- Jet Cards will be injected via JS -->
+                    </div>
+                </div>
+                <button id="closeShopBtn" class="bg-slate-700 hover:bg-slate-600 text-white font-bold px-8 py-2 rounded-full mt-4">
+                    Zpět do hry ✖
+                </button>
+            </div>
+
+            <!-- Score & Coins Display -->
+            <div class="absolute top-4 left-4 flex gap-3 pointer-events-none">
+                <div class="bg-slate-900/80 backdrop-blur px-3 py-1.5 rounded-xl border border-slate-700">
+                    <span class="text-[10px] text-slate-400 uppercase tracking-wider block">Skóre</span>
+                    <span id="scoreVal" class="text-xl font-bold text-yellow-400">0</span>
+                </div>
+                <div class="bg-slate-900/80 backdrop-blur px-3 py-1.5 rounded-xl border border-slate-700">
+                    <span class="text-[10px] text-slate-400 uppercase tracking-wider block">Nejlepší</span>
+                    <span id="highScoreVal" class="text-xl font-bold text-emerald-400">0</span>
+                </div>
+                <div class="bg-slate-900/80 backdrop-blur px-3 py-1.5 rounded-xl border border-slate-700">
+                    <span class="text-[10px] text-slate-400 uppercase tracking-wider block">Peníze</span>
+                    <span class="text-xl font-bold text-amber-300">💰 <span id="coinsVal">0</span></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls & Settings Panel -->
+        <div class="w-full md:w-80 bg-slate-800 p-6 flex flex-col justify-between border-t md:border-t-0 md:border-l border-slate-700">
+            <div>
+                <h2 class="text-xl font-bold text-slate-100 mb-4 flex items-center gap-2">
+                    ⚙️ Nastavení hry
+                </h2>
+
+                <!-- Gravity Slider -->
+                <div class="mb-5">
+                    <div class="flex justify-between items-center mb-1">
+                        <label for="gravityInput" class="text-sm font-semibold text-slate-300">Síla gravitace</label>
+                        <span id="gravityDisplay" class="text-sm font-bold text-yellow-400">0.45</span>
+                    </div>
+                    <input type="range" id="gravityInput" min="0.1" max="1.0" step="0.05" value="0.45"
+                           class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-yellow-400">
+                    <p class="text-xs text-slate-400 mt-1">Ovlivňuje, jak rychle stíhačka padá.</p>
+                </div>
+
+                <!-- Pipe Gap Slider -->
+                <div class="mb-5">
+                    <div class="flex justify-between items-center mb-1">
+                        <label for="gapInput" class="text-sm font-semibold text-slate-300">Mezera mezi trubkami</label>
+                        <span id="gapDisplay" class="text-sm font-bold text-yellow-400">110px</span>
+                    </div>
+                    <input type="range" id="gapInput" min="70" max="180" step="5" value="110"
+                           class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-yellow-400">
+                    <p class="text-xs text-slate-400 mt-1">Velikost průchodu mezi překážkami.</p>
+                </div>
+
+                <!-- Oscillation Toggle (Bonus) -->
+                <div class="mb-5 bg-slate-700/50 p-3 rounded-xl border border-slate-600">
+                    <label class="flex items-center justify-between cursor-pointer">
+                        <span class="text-sm font-semibold text-slate-200">Pohyblivé trubky 🌊</span>
+                        <input type="checkbox" id="oscillateInput" class="w-5 h-5 accent-emerald-500 rounded cursor-pointer">
+                    </label>
+                    <p class="text-xs text-slate-400 mt-1">Trubky kmitají nahoru a dolů!</p>
+                </div>
+            </div>
+
+            <!-- Help / Reset -->
+            <div class="pt-4 border-t border-slate-700 text-xs text-slate-400">
+                <p>💡 Tip pro žáky: Vyzkoušej si změnit gravitaci nebo velikost mezery a sleduj, jak se hra změní.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // DOM Elements
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const overlay = document.getElementById('overlay');
+        const overlayTitle = document.getElementById('overlayTitle');
+        const overlaySubtitle = document.getElementById('overlaySubtitle');
+        const startBtn = document.getElementById('startBtn');
+        const openShopBtn = document.getElementById('openShopBtn');
+        const closeShopBtn = document.getElementById('closeShopBtn');
+        const shopModal = document.getElementById('shopModal');
+        const jetList = document.getElementById('jetList');
+        const scoreVal = document.getElementById('scoreVal');
+        const highScoreVal = document.getElementById('highScoreVal');
+        const coinsVal = document.getElementById('coinsVal');
+        const shopCoinsVal = document.getElementById('shopCoinsVal');
+
+        // Config Inputs
+        const gravityInput = document.getElementById('gravityInput');
+        const gravityDisplay = document.getElementById('gravityDisplay');
+        const gapInput = document.getElementById('gapInput');
+        const gapDisplay = document.getElementById('gapDisplay');
+        const oscillateInput = document.getElementById('oscillateInput');
+
+        // Game State Variables
+        let isRunning = false;
+        let score = 0;
+        let highScore = 0;
+        let coins = 0;
+        let frameCount = 0;
+        let animationFrameId = null;
+        let pipes = [];
+        let coinsList = [];
+
+        // Jets Catalog
+        const JETS = [
+            {
+                id: 'basic',
+                name: 'Standard Falcon',
+                price: 0,
+                colorMain: '#cbd5e1',
+                colorWing: '#475569',
+                colorCanopy: '#38bdf8',
+                colorFlame: '#f97316'
+            },
+            {
+                id: 'stealth',
+                name: 'Night Stealth X',
+                price: 150,
+                colorMain: '#1e293b',
+                colorWing: '#0f172a',
+                colorCanopy: '#a855f7',
+                colorFlame: '#c084fc'
+            },
+            {
+                id: 'golden',
+                name: 'Gold Phoenix 24K',
+                price: 350,
+                colorMain: '#fbbf24',
+                colorWing: '#d97706',
+                colorCanopy: '#fef08a',
+                colorFlame: '#eab308'
+            }
+        ];
+
+        let unlockedJets = ['basic'];
+        let selectedJetId = 'basic';
+
+        // Dynamic Settings
+        let settings = {
+            gravity: parseFloat(gravityInput.value),
+            pipeGap: parseInt(gapInput.value),
+            oscillate: oscillateInput.checked,
+            jumpStrength: -7.0,
+            pipeSpeed: 3.5,
+            pipeSpawnInterval: 95
+        };
+
+        function updateCanvasSize() {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+        }
+        window.addEventListener('resize', updateCanvasSize);
+        updateCanvasSize();
+
+        function updateCurrencyUI() {
+            coinsVal.innerText = coins;
+            shopCoinsVal.innerText = coins;
+        }
+
+        // Render Shop Jets
+        function renderShop() {
+            jetList.innerHTML = '';
+            JETS.forEach(jet => {
+                const isUnlocked = unlockedJets.includes(jet.id);
+                const isSelected = selectedJetId === jet.id;
+
+                const card = document.createElement('div');
+                card.className = `p-3 rounded-xl border flex items-center justify-between ${
+                    isSelected ? 'border-yellow-400 bg-yellow-400/10' : 'border-slate-700 bg-slate-900/60'
+                }`;
+
+                card.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg flex items-center justify-center border border-slate-600" style="background:${jet.colorMain}">
+                            <div class="w-4 h-4 rounded-full" style="background:${jet.colorCanopy}"></div>
+                        </div>
+                        <div>
+                            <div class="font-bold text-slate-100 text-sm">${jet.name}</div>
+                            <div class="text-xs text-slate-400">${isUnlocked ? 'Vlastněno' : `Cena: ${jet.price} Kč`}</div>
+                        </div>
+                    </div>
+                    <div>
+                        ${
+                            isSelected 
+                                ? `<span class="text-xs font-bold text-yellow-400 bg-yellow-400/20 px-3 py-1.5 rounded-lg border border-yellow-400/30">Aktivní</span>`
+                                : isUnlocked
+                                ? `<button onclick="selectJet('${jet.id}')" class="text-xs font-bold text-slate-200 bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg">Vybrat</button>`
+                                : `<button onclick="buyJet('${jet.id}')" class="text-xs font-bold text-slate-900 bg-amber-400 hover:bg-amber-300 px-3 py-1.5 rounded-lg ${coins < jet.price ? 'opacity-50 cursor-not-allowed' : ''}">Koupit</button>`
+                        }
+                    </div>
+                `;
+                jetList.appendChild(card);
+            });
+        }
+
+        window.buyJet = function(id) {
+            const jet = JETS.find(j => j.id === id);
+            if (jet && coins >= jet.price && !unlockedJets.includes(id)) {
+                coins -= jet.price;
+                unlockedJets.push(id);
+                selectedJetId = id;
+                updateCurrencyUI();
+                renderShop();
+            }
+        };
+
+        window.selectJet = function(id) {
+            if (unlockedJets.includes(id)) {
+                selectedJetId = id;
+                renderShop();
+            }
+        };
+
+        // Fighter Jet Entity
+        const bird = {
+            x: 70,
+            y: 150,
+            radius: 10,
+            velocity: 0,
+            rotation: 0,
+            flameAnim: 0,
+            
+            draw() {
+                const currentJet = JETS.find(j => j.id === selectedJetId) || JETS[0];
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+                // Scale down jet visual to 65%
+                ctx.scale(0.65, 0.65);
+
+                // Engine Flame Animation
+                this.flameAnim += 0.3;
+                const flameLength = 12 + Math.sin(this.flameAnim) * 5;
+
+                ctx.fillStyle = currentJet.colorFlame;
+                ctx.beginPath();
+                ctx.moveTo(-20, 0);
+                ctx.lineTo(-20 - flameLength, -4);
+                ctx.lineTo(-20 - flameLength * 0.7, 0);
+                ctx.lineTo(-20 - flameLength, 4);
+                ctx.closePath();
+                ctx.fill();
+
+                // Main Jet Wings (Woodland Dark Green)
+                ctx.fillStyle = '#2d4a22';
+                ctx.beginPath();
+                ctx.moveTo(-8, 0);
+                ctx.lineTo(-14, -18);
+                ctx.lineTo(4, -3);
+                ctx.lineTo(-8, 0);
+                ctx.lineTo(4, 3);
+                ctx.lineTo(-14, 18);
+                ctx.closePath();
+                ctx.fill();
+
+                // Camouflage Patches on Wings (Earth Brown)
+                ctx.fillStyle = '#5c4028';
+                ctx.beginPath();
+                ctx.moveTo(-10, -10);
+                ctx.lineTo(-6, -15);
+                ctx.lineTo(-2, -8);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.fillStyle = '#5c4028';
+                ctx.beginPath();
+                ctx.moveTo(-10, 10);
+                ctx.lineTo(-6, 15);
+                ctx.lineTo(-2, 8);
+                ctx.closePath();
+                ctx.fill();
+
+                // Jet Fuselage (Olive Green / Brown Military Tint)
+                ctx.fillStyle = '#3b5323';
+                ctx.beginPath();
+                ctx.moveTo(22, 0);
+                ctx.lineTo(-18, -7);
+                ctx.lineTo(-22, 0);
+                ctx.lineTo(-18, 7);
+                ctx.closePath();
+                ctx.fill();
+
+                // Brown Camouflage Spots on Fuselage
+                ctx.fillStyle = '#4a3525';
+                ctx.beginPath();
+                ctx.ellipse(-4, -2, 5, 3, Math.PI / 6, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#6b4c33';
+                ctx.beginPath();
+                ctx.ellipse(8, 1, 6, 2, -Math.PI / 8, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#223816';
+                ctx.beginPath();
+                ctx.ellipse(-14, 0, 3, 4, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Cockpit Canopy (Tinted Military Glass)
+                ctx.fillStyle = currentJet.colorCanopy;
+                ctx.beginPath();
+                ctx.ellipse(3, -1, 9, 4, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Canopy Glare
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                ctx.beginPath();
+                ctx.ellipse(4, -2, 4, 1.5, -Math.PI / 6, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            },
+
+            update() {
+                this.velocity += settings.gravity;
+                this.y += this.velocity;
+                this.rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, this.velocity * 0.08));
+            },
+
+            jump() {
+                this.velocity = settings.jumpStrength;
+            },
+
+            reset() {
+                this.y = canvas.height / 2;
+                this.velocity = 0;
+                this.rotation = 0;
+            }
+        };
+
+        // Pipe & Coin Spawning Logic
+        function createPipePair() {
+            const minHeight = 40;
+            const maxHeight = canvas.height - settings.pipeGap - minHeight;
+            const topHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
+
+            pipes.push({
+                x: canvas.width,
+                topHeight: topHeight,
+                bottomY: topHeight + settings.pipeGap,
+                width: 55,
+                passed: false,
+                baseTopHeight: topHeight,
+                phase: Math.random() * Math.PI * 2
+            });
+
+            // 60% chance to spawn a gold coin inside the gap
+            if (Math.random() < 0.6) {
+                coinsList.push({
+                    x: canvas.width + 25,
+                    y: topHeight + settings.pipeGap / 2,
+                    radius: 8,
+                    collected: false,
+                    phase: Math.random() * Math.PI * 2
+                });
+            }
+        }
+
+        function updatePipes() {
+            for (let i = pipes.length - 1; i >= 0; i--) {
+                const p = pipes[i];
+                p.x -= settings.pipeSpeed;
+
+                // Handle Pipe Oscillation (Bonus feature)
+                if (settings.oscillate) {
+                    p.phase += 0.05;
+                    const offset = Math.sin(p.phase) * 35;
+                    p.topHeight = Math.max(30, p.baseTopHeight + offset);
+                    p.bottomY = p.topHeight + settings.pipeGap;
+                }
+
+                // Score Increment
+                if (!p.passed && p.x + p.width < bird.x) {
+                    p.passed = true;
+                    score++;
+                    coins += 10; // Reward +10 coins for each passed obstacle
+                    scoreVal.innerText = score;
+                    updateCurrencyUI();
+                    if (score > highScore) {
+                        highScore = score;
+                        highScoreVal.innerText = highScore;
+                    }
+                }
+
+                // Remove Offscreen Pipes
+                if (p.x + p.width < 0) {
+                    pipes.splice(i, 1);
+                }
+            }
+        }
+
+        function updateCoins() {
+            for (let i = coinsList.length - 1; i >= 0; i--) {
+                const c = coinsList[i];
+                c.x -= settings.pipeSpeed;
+                c.phase += 0.08;
+
+                // Coin Collection Detection
+                const dist = Math.hypot(bird.x - c.x, bird.y - c.y);
+                if (!c.collected && dist < bird.radius + c.radius + 4) {
+                    c.collected = true;
+                    coins += 5;
+                    updateCurrencyUI();
+                }
+
+                if (c.x + c.radius < 0 || c.collected) {
+                    coinsList.splice(i, 1);
+                }
+            }
+        }
+
+        function drawPipes() {
+            pipes.forEach(p => {
+                ctx.fillStyle = '#dc2626';
+                ctx.strokeStyle = '#991b1b';
+                ctx.lineWidth = 3;
+
+                // Top Pipe
+                ctx.beginPath();
+                ctx.roundRect(p.x, 0, p.width, p.topHeight, [0, 0, 8, 8]);
+                ctx.fill();
+                ctx.stroke();
+
+                // Top Pipe Cap
+                ctx.fillStyle = '#ef4444';
+                ctx.fillRect(p.x - 3, p.topHeight - 15, p.width + 6, 15);
+                ctx.strokeRect(p.x - 3, p.topHeight - 15, p.width + 6, 15);
+
+                // Bottom Pipe
+                ctx.fillStyle = '#dc2626';
+                ctx.beginPath();
+                ctx.roundRect(p.x, p.bottomY, p.width, canvas.height - p.bottomY, [8, 8, 0, 0]);
+                ctx.fill();
+                ctx.stroke();
+
+                // Bottom Pipe Cap
+                ctx.fillStyle = '#ef4444';
+                ctx.fillRect(p.x - 3, p.bottomY, p.width + 6, 15);
+                ctx.strokeRect(p.x - 3, p.bottomY, p.width + 6, 15);
+            });
+        }
+
+        function drawCoins() {
+            coinsList.forEach(c => {
+                ctx.save();
+                ctx.translate(c.x, c.y + Math.sin(c.phase) * 4);
+                
+                // Outer Gold Ring
+                ctx.fillStyle = '#fbbf24';
+                ctx.strokeStyle = '#d97706';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(0, 0, c.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                // Inner Shine
+                ctx.fillStyle = '#fef08a';
+                ctx.beginPath();
+                ctx.arc(-2, -2, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            });
+        }
+
+        function checkCollisions() {
+            // Floor & Ceiling Collision
+            if (bird.y - bird.radius <= 0 || bird.y + bird.radius >= canvas.height) {
+                return true;
+            }
+
+            // Pipe Collision Detection
+            for (let p of pipes) {
+                if (bird.x + bird.radius > p.x && bird.x - bird.radius < p.x + p.width) {
+                    if (bird.y - bird.radius < p.topHeight || bird.y + bird.radius > p.bottomY) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function gameLoop() {
+            if (!isRunning) return;
+
+            // Clear Screen & Sky Gradient
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#0284c7');
+            gradient.addColorStop(1, '#38bdf8');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Spawn Pipes
+            frameCount++;
+            if (frameCount % settings.pipeSpawnInterval === 0) {
+                createPipePair();
+            }
+
+            // Update Entities
+            bird.update();
+            updatePipes();
+            updateCoins();
+
+            // Render Entities
+            drawPipes();
+            drawCoins();
+            bird.draw();
+
+            // Collision Check
+            if (checkCollisions()) {
+                endGame();
+                return;
+            }
+
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        function startGame() {
+            isRunning = true;
+            score = 0;
+            frameCount = 0;
+            pipes = [];
+            coinsList = [];
+            scoreVal.innerText = '0';
+            bird.reset();
+            overlay.classList.add('hidden');
+            gameLoop();
+        }
+
+        function endGame() {
+            isRunning = false;
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            overlayTitle.innerText = 'Konec hry! 💥';
+            overlaySubtitle.innerHTML = `Dosáhl jsi skóre: <span class="text-yellow-400 font-bold">${score}</span>`;
+            startBtn.innerText = 'Hrát znovu 🔄';
+            overlay.classList.remove('hidden');
+        }
+
+        // Event Listeners
+        function triggerJump(e) {
+            if (e.type === 'keydown' && e.code !== 'Space') return;
+            if (e.target.closest('#shopModal') || e.target.closest('button') || e.target.closest('input')) return;
+
+            if (!isRunning && overlay.classList.contains('hidden')) return;
+
+            if (isRunning) {
+                bird.jump();
+            }
+        }
+
+        window.addEventListener('keydown', triggerJump);
+        canvas.addEventListener('pointerdown', triggerJump);
+
+        startBtn.addEventListener('click', startGame);
+
+        openShopBtn.addEventListener('click', () => {
+            renderShop();
+            shopModal.classList.remove('hidden');
+        });
+
+        closeShopBtn.addEventListener('click', () => {
+            shopModal.classList.add('hidden');
+        });
+
+        // Config Sliders Input Binding
+        gravityInput.addEventListener('input', (e) => {
+            settings.gravity = parseFloat(e.target.value);
+            gravityDisplay.innerText = settings.gravity.toFixed(2);
+        });
+
+        gapInput.addEventListener('input', (e) => {
+            settings.pipeGap = parseInt(e.target.value);
+            gapDisplay.innerText = `${settings.pipeGap}px`;
+        });
+
+        oscillateInput.addEventListener('change', (e) => {
+            settings.oscillate = e.target.checked;
+        });
+
+        // Draw initial state frame
+        updateCanvasSize();
+        bird.y = canvas.height / 2;
+        bird.draw();
+        updateCurrencyUI();
+    </script>
+</body>
+</html>
